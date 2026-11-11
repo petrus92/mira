@@ -1,0 +1,35 @@
+{
+  "mistral-large-4": {
+    "label": "Mistral Large 4",
+    "provider": "mistral",
+    "max_input_tokens": 1048576,
+    "max_output_tokens": 131072,
+    "input_cost_per_1m": 0.70,
+    "output_cost_per_1m": 2.10,
+    "supports_json_mode": true,
+    "purposes": ["review"],
+    "recommended_for": ["review"]
+  },
+  "mistral-medium-3-5": {
+    "label": "Mistral Medium 3.5 (review fallback, retired from API 2027-04-30)",
+    "provider": "mistral",
+    "max_input_tokens": 262144,
+    "max_output_tokens": 65536,
+    "input_cost_per_1m": 1.50,
+    "output_cost_per_1m": 7.50,
+    "supports_json_mode": true,
+    "purposes": ["review"],
+    "recommended_for": []
+  },
+  "zai-glm-5-3-flash": {
+    "label": "GLM 5.3 Flash",
+    "provider": "mistral",
+    "max_input_tokens": 1048576,
+    "max_output_tokens": 131072,
+    "input_cost_per_1m": 0.15,
+    "output_cost_per_1m": 0.50,
+    "supports_json_mode": true,
+    "purposes": ["indexing", "review"],
+    "recommended_for": ["indexing"]
+  }
+}

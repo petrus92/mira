@@ -1,0 +1,66 @@
+# Mira production stack: app (SQLite) + nginx TLS reverse proxy.
+#
+#   cp .env .env          # then fill in MISTRAL_API_KEY, GitHub App creds
+#   # put TLS certs in deploy/nginx/certs/ and the GitHub App key in deploy/secrets/
+#   docker compose up -d --build
+#
+# Mira stays private to the compose network; nginx is the only public entry.
+
+services:
+  mira:
+    build: .
+    # Tag for the locally built image (compose never pulls this — `build: .`
+    # wins). Bump it when this branch moves to a newer release.
+    image: mira:0.11.1
+    container_name: mira
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      # SQLite (default when DATABASE_URL is unset): the app DB and the
+      # per-repo code indexes live under /app/data on the mira-data volume.
+      MIRA_INDEX_DIR: /app/data/indexes
+      # Labels + pricing for mistral-large-4 / zai-glm-5-3-flash in the
+      # dashboard model catalog and cost telemetry.
+      MIRA_MODELS_JSON_PATH: /app/deploy/models-mistral.json
+    command: ["--config", "/app/mira.yaml"]
+    expose:
+      - "8000"
+    volumes:
+      - mira-data:/app/data
+      - ./mira.yaml:/app/mira.yaml:ro
+      - ./deploy/models-mistral.json:/app/deploy/models-mistral.json:ro
+      - ./deploy/secrets:/app/secrets:ro
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request as u; u.urlopen('http://127.0.0.1:8000/health', timeout=5)"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 15s
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  nginx:
+    image: nginx:1.29-alpine
+    container_name: mira-nginx
+    restart: unless-stopped
+    depends_on:
+      mira:
+        condition: service_healthy
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./deploy/nginx/mira.conf:/etc/nginx/conf.d/default.conf:ro
+      - ./deploy/nginx/certs:/etc/nginx/certs:ro
+      - ./deploy/nginx/acme:/var/www/certbot
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+volumes:
+  mira-data:

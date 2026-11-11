@@ -1,0 +1,47 @@
+# Deployment-wide Mira configuration (docker-compose mounts this at /app/mira.yaml).
+# Per-repo `.mira.yaml` files deep-merge over these values for their repo only.
+# Secrets live in `.env`, never here.
+
+llm:
+  # Mistral La Plateforme — OpenAI-compatible endpoint; Mira has a built-in
+  # provider profile for it (models are sent as bare IDs).
+  base_url: "https://api.mistral.ai/v1"
+  api_key_env: "MISTRAL_API_KEY"
+
+  # Main review + walkthrough model: Mistral Large 4.
+  model: "mistral-large-4"
+  # Security pass runs on the same top tier. Kept explicit so a future change
+  # to `model` can never silently downgrade the security sweep.
+  security_model: "mistral-large-4"
+  # Codebase indexing (repo summaries, package inventory): Z.ai GLM 5.3 Flash,
+  # hosted by Mistral on the same endpoint and key.
+  indexing_model: "zai-glm-5-3-flash"
+  # Fallback if Mistral Large 4 is unavailable — the mid-tier Mistral model.
+  # Deprecated by Mistral (10/2026) and retired from the API on 2027-04-30:
+  # update this before then (e.g. to the then-current mid-tier model).
+  fallback_model: "mistral-medium-3-5"
+
+  # Default reasoning effort for the review/security passes ("off"/"low"/
+  # "medium"/"high"/"xhigh"/"max"). Mistral Large 4 and GLM 5.3 Flash both
+  # accept reasoning_effort; Mira drops the parameter automatically if the
+  # endpoint ever rejects it.
+  # review_reasoning_effort: "medium"
+
+  # Output budget per call (tokens). 16k suits large-chunk reviews; Mira falls
+  # back to 4096 automatically if an endpoint rejects the budget.
+  max_tokens: 16384
+
+# SQLite by default: DATABASE_URL stays unset and the app DB lives at
+# $MIRA_INDEX_DIR/_app.db on the mira-data volume. To move to Postgres later,
+# set DATABASE_URL=postgresql://... in .env instead of touching this file.
+# database:
+#   url: ""
+
+index:
+  # Concurrent indexing batches per repo. Mistral subscription tiers have
+  # per-tier concurrency limits: drop to 4 (or 2) if full-index runs log
+  # sustained 429 backoff loops.
+  llm_concurrency: 8
+
+# Filter/review/commands sections intentionally left at product defaults.
+# Tune per-repo via `.mira.yaml` in each repository, or from the dashboard.
