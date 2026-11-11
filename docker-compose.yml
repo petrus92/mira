@@ -52,8 +52,14 @@ services:
     ports:
       - "80:80"
       - "443:443"
+    environment:
+      # Public hostname of this deployment; rendered into the vhost by the
+      # nginx image's envsubst (see deploy/nginx/mira.conf.template).
+      MIRA_DOMAIN: ${MIRA_DOMAIN:?Set MIRA_DOMAIN in .env}
+      # Only substitute MIRA_* variables so nginx runtime vars ($host, ...) pass through.
+      NGINX_ENVSUBST_FILTER: ^MIRA_
     volumes:
-      - ./deploy/nginx/mira.conf:/etc/nginx/conf.d/default.conf:ro
+      - ./deploy/nginx/mira.conf.template:/etc/nginx/templates/default.conf.template:ro
       - ./deploy/nginx/certs:/etc/nginx/certs:ro
       - ./deploy/nginx/acme:/var/www/certbot
     logging:
