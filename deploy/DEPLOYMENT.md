@@ -4,8 +4,9 @@ Kompletny przewodnik produkcyjnego wdrożenia Mira na własnym VPS:
 instalacja Dockera, pobranie kodu, sekrety, TLS, firewall, start
 kontenerów i konfiguracja GitHub App.
 
-Wszystkie komendy wykonujesz **na VPS przez SSH** jako użytkownik
-`ubuntu`. Kod projektu znajduje się w katalogu **`/opt/mira`**.
+Wszystkie komendy wykonujesz **na VPS przez SSH jako `root`**
+(weryfikacja: `whoami` → `root`, `id` → `uid=0(root) ... groups=0(root),987(docker)`).
+Kod projektu znajduje się w katalogu **`/opt/mira`**.
 
 > Wszystkie wartości w przykładach (`twoja-domena.example.com`, klucze,
 > sekrety) to **placeholdery** — zastąp je własnymi. Nigdy nie commituj
@@ -16,36 +17,32 @@ Wszystkie komendy wykonujesz **na VPS przez SSH** jako użytkownik
 ## 0. Instalacja git, Dockera i Docker Compose
 
 ```bash
-ssh ubuntu@IP_VPS
-sudo apt update
-sudo apt install -y git ca-certificates curl
+ssh root@IP_VPS
+apt update
+apt install -y git ca-certificates curl
 
 # oficjalne repo Dockera
-sudo install -m 0755 -d /etc/apt/keyrings
-sudo curl -fsSL https://download.docker.com/linux/ubuntu/gpg -o /etc/apt/keyrings/docker.asc
-sudo chmod a+r /etc/apt/keyrings/docker.asc
-echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/ubuntu $(. /etc/os-release && echo $VERSION_CODENAME) stable" | sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
-sudo apt update
-sudo apt install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
+install -m 0755 -d /etc/apt/keyrings
+curl -fsSL https://download.docker.com/linux/ubuntu/gpg -o /etc/apt/keyrings/docker.asc
+chmod a+r /etc/apt/keyrings/docker.asc
+echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/ubuntu $(. /etc/os-release && echo $VERSION_CODENAME) stable" | tee /etc/apt/sources.list.d/docker.list > /dev/null
+apt update
+apt install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
 
-# dostęp do dockera bez sudo
-sudo usermod -aG docker $USER
-# członkostwo w grupie obowiązuje od nowej sesji — wyloguj się i zaloguj ponownie:
-exit
-ssh ubuntu@IP_VPS
-id          # na liście grup powinno być "docker"
+# weryfikacja (jako root nie potrzeba sudo; root jest już w grupie docker)
 docker --version
 docker compose version
 ```
 
-> Uwaga: grupa `docker` daje efektywnie uprawnienia roota na hoście.
-> Nie dodawaj do niej użytkowników, którym nie ufasz.
+> Wariant dla użytkownika nie-root: po instalacji wykonaj
+> `usermod -aG docker $USER`, wyloguj się i zaloguj ponownie (lub użyj
+> `sudo docker ...`). Uwaga: grupa `docker` daje efektywnie uprawnienia
+> roota na hoście — nie dodawaj do niej użytkowników, którym nie ufasz.
 
 ## 1. Pobranie kodu projektu
 
 ```bash
-sudo mkdir -p /opt/mira
-sudo chown ubuntu:ubuntu /opt/mira
+mkdir -p /opt/mira
 git clone -b develop-0.11.1 https://github.com/petrus92/mira.git /opt/mira
 cd /opt/mira
 git log --oneline -1
@@ -73,11 +70,10 @@ Klucz prywatny GitHub App (pobrany jako plik `.pem`) umieść w `deploy/secrets`
 
 ```bash
 # na komputerze lokalnym:
-scp mira-app.2026-XX-XX.private-key.pem ubuntu@IP_VPS:/tmp/
+scp mira-app.2026-XX-XX.private-key.pem root@IP_VPS:/tmp/
 # na VPS:
 mkdir -p /opt/mira/deploy/secrets
-sudo mv /tmp/mira-app.2026-XX-XX.private-key.pem /opt/mira/deploy/secrets/
-sudo chown ubuntu:ubuntu /opt/mira/deploy/secrets/*.pem
+mv /tmp/mira-app.2026-XX-XX.private-key.pem /opt/mira/deploy/secrets/
 chmod 600 /opt/mira/deploy/secrets/*.pem
 ```
 
@@ -90,19 +86,18 @@ Forma `@/app/secrets/...` jest obsługiwana przez aplikację
 Przed pierwszym startem nginx (port 80 musi być wolny dla trybu `standalone`):
 
 ```bash
-sudo apt install -y certbot
-sudo certbot certonly --standalone -d twoja-domena.example.com
+apt install -y certbot
+certbot certonly --standalone -d twoja-domena.example.com
 mkdir -p /opt/mira/deploy/nginx/certs
-sudo cp /etc/letsencrypt/live/twoja-domena.example.com/fullchain.pem /opt/mira/deploy/nginx/certs/
-sudo cp /etc/letsencrypt/live/twoja-domena.example.com/privkey.pem  /opt/mira/deploy/nginx/certs/
-sudo chown -R ubuntu:ubuntu /opt/mira/deploy/nginx/certs
+cp /etc/letsencrypt/live/twoja-domena.example.com/fullchain.pem /opt/mira/deploy/nginx/certs/
+cp /etc/letsencrypt/live/twoja-domena.example.com/privkey.pem  /opt/mira/deploy/nginx/certs/
 chmod 600 /opt/mira/deploy/nginx/certs/privkey.pem
 ```
 
 Odnowienia przez webroot (gdy nginx już działa) — dodaj do crona na VPS:
 
 ```bash
-sudo certbot renew --webroot -w /opt/mira/deploy/nginx/acme
+certbot renew --webroot -w /opt/mira/deploy/nginx/acme
 cd /opt/mira && docker compose restart nginx
 ```
 
@@ -111,10 +106,10 @@ cd /opt/mira && docker compose restart nginx
 Kolejność krytyczna — najpierw SSH, żeby nie odciąć sobie dostępu:
 
 ```bash
-sudo ufw allow OpenSSH
-sudo ufw allow 80,443/tcp
-sudo ufw enable
-sudo ufw status verbose
+ufw allow OpenSSH
+ufw allow 80,443/tcp
+ufw enable
+ufw status verbose
 ```
 
 ## 5. DNS
